@@ -4086,7 +4086,7 @@ const KITCHEN_SPRITES=[
  {key:'kit_carrots',x:111,y:257,w:98,h:94},
  {key:'kit_sink3',x:354,y:221,w:75,h:141},
  {key:'kit_kettle1',x:566,y:45,w:96,h:123},
- {key:'kit_kettle2',x:671,y:48,w:96,h:123},
+ {key:'kit_kettle2',x:671,y:47,w:96,h:123},
  {key:'kit_cart',x:786,y:95,w:76,h:82},
  {key:'kit_temp',x:869,y:88,w:123,h:70},
  {key:'kit_prep',x:640,y:220,w:195,h:108},
@@ -4363,8 +4363,8 @@ function washDraw(){
  const w=washState;if(!w)return;
  const image=$('washAnimImg'),frame=Math.min(3,w.round);if(image&&image.dataset.frame!==String(frame)){image.src=[EMBED.wash_frame_1,EMBED.wash_frame_2,EMBED.wash_frame_3,EMBED.wash_frame_4][frame];image.dataset.frame=String(frame);}
  const cap=$('washAnimCaption');if(cap)cap.textContent=['① こまつなを よく みる','② はの うらまで チェック','③ よく みて しあげ','✨ こまつなの てんけん かんりょう'][Math.min(3,w.round)];
- const stage=$('miniStage');if(stage)stage.textContent=w.finished?'クリア！':'1 / 1 回';
- const steps=$('washSteps');if(steps)steps.innerHTML='<span class="washBasin now">1 / 1</span>';
+ const stage=$('miniStage');if(stage)stage.textContent=w.finished?'クリア！':'1/1回';
+ const steps=$('washSteps');if(steps)steps.innerHTML='<span class="washBasin now">1/1</span>';
  const title=$('washTitle');if(title)title.textContent=w.finished?'✅ こまつなの てんけん かんりょう！':'はむしが いたのは どれ？';
  for(let id=0;id<huntCards();id++){
   const card=$('huntCard'+id);if(!card)continue;
@@ -4450,21 +4450,26 @@ let handNativeCanvas=null,handNativeCtx=null,handFoamPaint=null,handFoamPaintCtx
 let handCoverageGrid=null,handCoverageTotal=0,handCoverageCovered=0,handCoverageCols=0,handCoverageRows=0;
 let handFoamHeld={ArrowUp:false,ArrowDown:false,ArrowLeft:false,ArrowRight:false,fire:false};
 let handFoamButtons=[];
+// Edge/Chromium compatibility: reduce compositing pressure on the handwashing canvas.
+const slcIsEdgeBrowser=/\bEdg(?:A|iOS)?\//.test(navigator.userAgent);
+if(slcIsEdgeBrowser)document.documentElement.classList.add('slc-edge-browser');
 const handFoamConfig=()=>difficultyId==='easy'?{radius:132,speed:620,period:.083}:difficultyId==='hard'?{radius:112,speed:575,period:.087}:{radius:122,speed:600,period:.085};
 function foamInitArt(){
  if(handNativeCanvas||!handArt.complete||!handArt.naturalWidth)return;
  const w=handArt.naturalWidth,h=handArt.naturalHeight;
  handNativeCanvas=document.createElement('canvas');handNativeCanvas.width=w;handNativeCanvas.height=h;
- handNativeCtx=handNativeCanvas.getContext('2d',{willReadFrequently:true});handNativeCtx.drawImage(handArt,0,0,w,h);
+ handNativeCtx=handNativeCanvas.getContext('2d',{willReadFrequently:true})||handNativeCanvas.getContext('2d');
+ if(handNativeCtx)handNativeCtx.drawImage(handArt,0,0,w,h);
  handFoamPaint=document.createElement('canvas');handFoamPaint.width=w;handFoamPaint.height=h;handFoamPaintCtx=handFoamPaint.getContext('2d');
  handFoamOverlay=document.createElement('canvas');handFoamOverlay.width=w;handFoamOverlay.height=h;handFoamOverlayCtx=handFoamOverlay.getContext('2d');
- const pixels=handNativeCtx.getImageData(0,0,w,h).data;handCoverageCols=Math.ceil(w/5);handCoverageRows=Math.ceil(h/5);
+ let pixels=null;try{if(handNativeCtx)pixels=handNativeCtx.getImageData(0,0,w,h).data}catch(_err){pixels=null}
+ handCoverageCols=Math.ceil(w/5);handCoverageRows=Math.ceil(h/5);
  handCoverageGrid=new Uint8Array(handCoverageCols*handCoverageRows);handCoverageTotal=0;
  // Coverage is the number of actual uncovered hand-skin pixels, sampled in a fixed 5px grid.
  for(let gy=0;gy<handCoverageRows;gy++)for(let gx=0;gx<handCoverageCols;gx++){
   const x=Math.min(w-1,gx*5+2),y=Math.min(h-1,gy*5+2),i=(y*w+x)*4;
-  const r=pixels[i],g=pixels[i+1],b=pixels[i+2],a=pixels[i+3];
-  // All visible opaque hand pixels (including pale fingertips) count toward the foam coverage.
+  // If pixel reads fail (e.g. Edge graphics restrictions), use a playable geometric fallback.
+  const a=pixels?pixels[i+3]:((x/w-.5)**2/.24+(y/h-.52)**2/.25<1?255:0);
   if(a>175){handCoverageGrid[gy*handCoverageCols+gx]=1;handCoverageTotal++;}
  }
 }
@@ -4473,8 +4478,8 @@ function foamResetCoverage(){
  foamInitArt();if(!handCoverageGrid)return;
  for(let i=0;i<handCoverageGrid.length;i++)if(handCoverageGrid[i]===2)handCoverageGrid[i]=1;
  handCoverageCovered=0;
- handFoamPaintCtx.clearRect(0,0,handFoamPaint.width,handFoamPaint.height);
- handFoamOverlayCtx.clearRect(0,0,handFoamOverlay.width,handFoamOverlay.height);
+ if(handFoamPaintCtx)handFoamPaintCtx.clearRect(0,0,handFoamPaint.width,handFoamPaint.height);
+ if(handFoamOverlayCtx)handFoamOverlayCtx.clearRect(0,0,handFoamOverlay.width,handFoamOverlay.height);
 }
 function foamCoveragePercent(){return handCoverageTotal?Math.floor(100*handCoverageCovered/handCoverageTotal):0;}
 function foamCanvasCoords(x,y){return{x:HAND_PICTURE.x+x/HAND_ART_W()*HAND_PICTURE.w,y:HAND_PICTURE.y+y/HAND_ART_H()*HAND_PICTURE.h};}
@@ -4491,7 +4496,7 @@ function foamApplyBubble(x,y,radius){
   if(dx*dx+dy*dy<=c2){handCoverageGrid[p]=2;handCoverageCovered++;}
  }
  const c=handFoamPaintCtx;
- c.save();c.fillStyle='rgba(251,255,255,.96)';c.shadowColor='rgba(102,205,239,.58)';c.shadowBlur=8;
+ if(c){c.save();c.fillStyle='rgba(251,255,255,.96)';c.shadowColor='rgba(102,205,239,.58)';c.shadowBlur=8;
  // Irregular, overlapping foam cloud rather than a plain round paint stamp.
   c.beginPath();
   for(let k=0;k<=72;k++){
@@ -4508,10 +4513,11 @@ function foamApplyBubble(x,y,radius){
   }
   c.strokeStyle='rgba(175,232,247,.65)';c.lineWidth=Math.max(1,radius*.015);
   c.beginPath();c.arc(cx-radius*.19,cy-radius*.26,radius*.16,Math.PI*1.13,Math.PI*1.82);c.stroke();
- c.restore();
- // clip the accumulated foam to the exact silhouette of the original transparent artwork
- const out=handFoamOverlayCtx;out.clearRect(0,0,handFoamOverlay.width,handFoamOverlay.height);
- out.drawImage(handFoamPaint,0,0);out.globalCompositeOperation='destination-in';out.drawImage(handArt,0,0);out.globalCompositeOperation='source-over';
+ c.restore();}
+ // Clip to the official hand silhouette, if the browser supports offscreen drawing.
+ const out=handFoamOverlayCtx;
+ if(out&&handFoamPaint){out.clearRect(0,0,handFoamOverlay.width,handFoamOverlay.height);
+ out.drawImage(handFoamPaint,0,0);out.globalCompositeOperation='destination-in';out.drawImage(handArt,0,0);out.globalCompositeOperation='source-over';}
  const percent=foamCoveragePercent();handState.percent=percent;
  if(handCoverageCovered===handCoverageTotal&&handCoverageTotal>0){
   handState.phase='rinsing';handState.transition=0;handFoamHeld.fire=false;foamReleaseButtons();ping(950,.09);
@@ -4636,13 +4642,17 @@ function tickHandMini(dt){
   s.transition+=dt;if(s.transition>=1.6){s.phase='done';foamDrawUI();}
  }
  s.fx=s.fx.filter(p=>{p.life-=dt;return p.life>0;});
- foamRender();
+ // Do not redraw an unchanged 2D canvas 60 times/sec while idle.
+ const frameNow=performance.now();
+ if(s.phase==='ready'||s.phase==='done')return;
+ if(frameNow-(s.lastPaintAt||0)<(slcIsEdgeBrowser?40:30))return;
+ s.lastPaintAt=frameNow;foamRender();
 }
 function foamDrawStar(ctx,x,y,sz){ctx.beginPath();ctx.moveTo(x,y-sz);ctx.quadraticCurveTo(x+sz*.14,y-sz*.14,x+sz,y);ctx.quadraticCurveTo(x+sz*.14,y+sz*.14,x,y+sz);ctx.quadraticCurveTo(x-sz*.14,y+sz*.14,x-sz,y);ctx.quadraticCurveTo(x-sz*.14,y-sz*.14,x,y-sz);ctx.closePath();ctx.fill();}
 function foamRender(){
  const c=$('handFoamCanvas'),s=handState;if(!c||!s)return;
  const ctx=c.getContext('2d');if(!ctx)return;const w=HAND_FOAM_W,h=HAND_FOAM_H;
- const dpr=Math.min(1.6,Math.max(1,window.devicePixelRatio||1));
+ const dpr=Math.min(slcIsEdgeBrowser?1.25:1.6,Math.max(1,window.devicePixelRatio||1));
  const rw=Math.round(w*dpr),rh=Math.round(h*dpr);if(c.width!==rw||c.height!==rh){c.width=rw;c.height=rh;}
  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
  const bg=ctx.createLinearGradient(0,0,0,h);bg.addColorStop(0,'#d7f4ff');bg.addColorStop(1,'#f3fcff');ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);
@@ -4697,8 +4707,8 @@ function slcReleaseHandwashGraphics(){
  handCoverageTotal=0;handCoverageCovered=0;handCoverageCols=0;handCoverageRows=0;
 }
 function slcRestoreKitchenAfterHandwash(){
- // Force a fresh backing store once, then restore the original HiDPI resolution.
- canvas.width=canvas.width;canvas.height=canvas.height;
+ // Safari needs a fresh layer after the modal closes; Edge does better reusing its layer.
+ if(!slcIsEdgeBrowser){canvas.width=canvas.width;canvas.height=canvas.height;}
  syncCanvasResolution();ctx.filter='none';ctx.globalAlpha=1;
  drawScene();
 }
@@ -6275,7 +6285,7 @@ function movement(dt){
    if(stamina<=0){sprinting=false;showToast('⚡ たいりょく 0%！ のろのろで すすもう');ping(240,.2)}
  }else{sprinting=false;}
 }
-let last=0;function loop(t){let dt=Math.min(.05,Math.max(.001,(t-last)/1000||.016));last=t;clock+=dt;pollHandGamepad();tickHandMini(dt);if(game==='cheer')tickCheer(dt);if(game==='love'&&!loveLocked){loveElapsed+=dt;const needle=$('loveNeedle');if(needle)needle.style.left=(loveNeedle()*100)+'%';}if(game==='chop')tickChop(dt);updateEffects(dt);if(toastTime>0){toastTime-=dt;if(toastTime<=0){$('toast').classList.remove('show');$('pathLegend').classList.remove('faded')}}if(game!=='play'&&touchContacts.size)resetTouchGesture();if(game==='play'&&(!slcWorkPopupActive&&!slcMilkIntroActive||window.matchMedia('(orientation:portrait) and (pointer:coarse)').matches)){const canAdvanceClock=!slcMilkIntroActive;const canMove=!slcWorkPopupActive&&!slcMilkIntroActive;stepElapsed+=dt;if(!player.walk&&!pressing&&!autoDestination)hintIdle+=dt;else hintIdle=0;if(canAdvanceClock){timer=Math.max(0,timer-dt);}if(timer<=0)lose();else{if(canMove)movement(dt);slcCoachTick(dt);if(work&&(pressing||tapWorkActive)){if(!approachOK(work.id)){release();showToast('作業場所から離れました')}else{work.elapsed+=dt;if(work.elapsed>=work.duration){work=null;pressing=false;tapWorkActive=false;complete()}}}updateUI()}}slcSyncTempFox();slcCameraTrack(dt);drawScene();slcTutorialStatus();requestAnimationFrame(loop)}
+let slcHandTickErrorCount=0;let last=0;function loop(t){let dt=Math.min(.05,Math.max(.001,(t-last)/1000||.016));last=t;clock+=dt;pollHandGamepad();try{tickHandMini(dt)}catch(error){if(++slcHandTickErrorCount===1)console.warn('手洗いCanvasを安全モードで継続:',error);if(handState){handState.shots.length=0;handState.fx.length=0;handFoamOverlayCtx=null;handFoamPaintCtx=null;}}if(game==='cheer')tickCheer(dt);if(game==='love'&&!loveLocked){loveElapsed+=dt;const needle=$('loveNeedle');if(needle)needle.style.left=(loveNeedle()*100)+'%';}if(game==='chop')tickChop(dt);updateEffects(dt);if(toastTime>0){toastTime-=dt;if(toastTime<=0){$('toast').classList.remove('show');$('pathLegend').classList.remove('faded')}}if(game!=='play'&&touchContacts.size)resetTouchGesture();if(game==='play'&&(!slcWorkPopupActive&&!slcMilkIntroActive||window.matchMedia('(orientation:portrait) and (pointer:coarse)').matches)){const canAdvanceClock=!slcMilkIntroActive;const canMove=!slcWorkPopupActive&&!slcMilkIntroActive;stepElapsed+=dt;if(!player.walk&&!pressing&&!autoDestination)hintIdle+=dt;else hintIdle=0;if(canAdvanceClock){timer=Math.max(0,timer-dt);}if(timer<=0)lose();else{if(canMove)movement(dt);slcCoachTick(dt);if(work&&(pressing||tapWorkActive)){if(!approachOK(work.id)){release();showToast('作業場所から離れました')}else{work.elapsed+=dt;if(work.elapsed>=work.duration){work=null;pressing=false;tapWorkActive=false;complete()}}}updateUI()}}slcSyncTempFox();slcCameraTrack(dt);if(game!=='handMini'&&game!=='handIntro')drawScene();slcTutorialStatus();requestAnimationFrame(loop)}
 window.addEventListener('keydown',e=>{
  if(document.getElementById('slcSafetyNotice')){if(e.code==='Enter'&&!e.repeat){e.preventDefault();setupStep=0;menu()}return;}
  if(document.querySelector('.slcAutoLanding')){if(e.code==='Enter'&&!e.repeat){e.preventDefault();showSafetyNotice()}return;}
@@ -7413,4 +7423,184 @@ html,body,#app{min-height:calc(var(--slc-vh,1vh) * 100)!important;height:calc(va
  #overlay .washPanel .miniSafety{font-size:clamp(10px,2.6vw,12px)!important;line-height:1.17!important;}
 }
 </style>
+
+<style id="slcEdgeHandwashStability20261027">
+/* Handwashing guide is a separate pre-game modal, not a scrolling game overlay. */
+#slcHandwashIntroOverlay .slcHandwashIntro{display:flex!important;flex-direction:column!important;gap:7px!important;padding:10px!important;box-sizing:border-box!important;min-height:0!important;overflow:hidden!important;}
+#slcHandwashIntroOverlay .slcHandIntroMain{display:flex!important;align-items:center!important;justify-content:center!important;flex:1 1 auto!important;min-height:0!important;max-height:100%!important;width:100%!important;overflow:auto!important;padding:4px!important;}
+#slcHandwashIntroOverlay .slcHandIntroGuide{display:block!important;width:100%!important;height:100%!important;max-height:100%!important;object-fit:contain!important;}
+#slcHandwashIntroOverlay .slcHandIntroHow{flex:0 0 auto!important;padding:5px 9px!important;margin:0!important;line-height:1.2!important;}
+#slcHandwashIntroOverlay .slcHandIntroHow p{line-height:1.3!important;margin:3px 0!important;}
+#slcHandwashIntroOverlay footer{display:flex!important;flex:0 0 auto!important;justify-content:center!important;min-height:48px!important;margin:0!important;}
+#slcHandwashIntroOverlay #slcHandIntroGo{min-height:46px!important;font-size:clamp(14px,2vw,18px)!important;background:linear-gradient(#80e5c4,#2aa187)!important;color:white!important;border:2px solid #319f88!important;border-radius:12px!important;box-shadow:0 3px 0 #32715f!important;font-weight:900!important;}
+/* Canvas+blur composition can exhaust Edge's GPU resources on some devices. */
+html.slc-edge-browser #overlay:has(.handFoamPanel),html.slc-edge-browser #slcHandwashIntroOverlay{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;filter:none!important;}
+html.slc-edge-browser #overlay:has(.handFoamPanel) .cover{display:none!important;}
+/* Instruction text must never be cut at two lines on a desktop browser. */
+@media (orientation:landscape) and (pointer:fine){
+ html.slc-hud-active #hintDock{width:min(45vw,670px)!important;max-width:min(45vw,670px)!important;right:auto!important;max-height:none!important;}
+ html.slc-hud-active #hintDock #hint{height:auto!important;min-height:57px!important;max-height:none!important;overflow:visible!important;}
+ html.slc-hud-active #hintDock .guideCopy{overflow:visible!important;min-width:0!important;}
+ html.slc-hud-active #hintDock #hint .guideCopy strong{font-size:clamp(14px,1.28vw,19px)!important;line-height:1.22!important;max-height:none!important;overflow:visible!important;white-space:normal!important;overflow-wrap:anywhere!important;}
+}
+@media (orientation:landscape) and (pointer:coarse){
+ html.slc-hud-active #hintDock{width:min(46vw,510px)!important;max-width:46vw!important;max-height:none!important;}
+ html.slc-hud-active #hintDock #hint{height:auto!important;max-height:none!important;min-height:50px!important;}
+ html.slc-hud-active #hintDock #hint .guideCopy strong{max-height:none!important;overflow:visible!important;line-height:1.18!important;font-size:clamp(11px,1.5vw,16px)!important;}
+}
+/* The round label must never split 1/1 over two lines. */
+#overlay .washPanel #washSteps .washBasin{box-sizing:border-box!important;min-width:76px!important;width:76px!important;white-space:nowrap!important;word-break:keep-all!important;line-height:1!important;font-size:clamp(18px,2.3vw,26px)!important;}
+#overlay .washPanel #miniStage{white-space:nowrap!important;word-break:keep-all!important;}
+/* During the handwashing mini-game show only controls/feedback; the illustrated 12 steps are shown beforehand. */
+#overlay .handFoamPanel .handFoamStepCard,#overlay .handFoamPanel .handFoamGuideGrid,#overlay .handFoamPanel .handGuideSummary{display:none!important;}
+</style>
+\n<!-- SLC QA polish 2026-10-27: readable guide, no wasted space -->
+<style id="slcQAPolish20261027">
+/* 手洗い前：12コマを読める大きさで配置。既存の公式画像を背景位置で分割し、画像自体は変更しない */
+@media (orientation:portrait) and (pointer:coarse){
+ #slcHandwashIntroOverlay .slcHandIntroMain{
+   display:block!important;overflow-x:hidden!important;overflow-y:auto!important;
+   overscroll-behavior-y:contain!important;scrollbar-width:thin;
+   padding:6px!important;min-width:0!important;min-height:0!important;
+ }
+ #slcHandwashIntroOverlay .slcHandIntroGuide{display:none!important}
+ #slcHandwashIntroOverlay .slcHandIntroGrid{
+   display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
+   width:100%!important;min-width:0!important;max-width:100%!important;
+   height:auto!important;min-height:0!important;
+   gap:6px!important;margin:0!important;padding:0!important;align-content:start!important;
+ }
+ #slcHandwashIntroOverlay .slcHandIntroGrid .slcHandGuideTile{
+   width:100%!important;height:auto!important;aspect-ratio:1.5!important;
+   min-width:0!important;min-height:0!important;border-radius:10px!important;
+   background-size:400% 300%!important;background-repeat:no-repeat!important;
+   box-sizing:border-box!important;border:2px solid #d7e8ef!important;
+ }
+ #slcHandwashIntroOverlay .slcHandIntroScrollCue{margin:3px auto!important}
+}
+/* PCの野菜洗い画面。大きな空欄に小さな絵が固まらないよう、左側イラストを中央配置する */
+@media (orientation:landscape) and (min-width:960px) and (min-height:520px){
+ #overlay .washPanel .miniVisual{justify-content:center!important;align-items:center!important;gap:12px!important;}
+ #overlay .washPanel .miniVisual .miniArtWindow{
+   display:flex!important;flex:1 1 auto!important;width:100%!important;
+   max-height:none!important;min-height:0!important;justify-content:center!important;align-items:center!important;
+ }
+ #overlay .washPanel .miniVisual .miniArtWindow img{
+   display:block!important;height:auto!important;width:min(90%,530px)!important;
+   max-width:100%!important;max-height:min(55dvh,430px)!important;
+   object-fit:contain!important;margin:0 auto!important;
+ }
+ #overlay .washPanel .miniVisual .miniAnimCaption{white-space:normal!important;overflow:visible!important;text-overflow:clip!important;text-align:center!important;line-height:1.3!important;}
+ #overlay .washPanel .miniVisual .gameMiniHint{max-width:34em!important;text-align:center!important;line-height:1.45!important;}
+}
+/* PC：しろっぷの案内を強制2行省略にせず、重要な作業名が最後まで読めるようにする */
+@media (orientation:landscape) and (min-width:960px) and (hover:hover){
+ html.slc-hud-active #hintDock{right:auto!important;width:min(63vw,820px)!important;max-height:none!important;}
+ html.slc-hud-active #hintDock #hint{height:auto!important;max-height:none!important;min-height:54px!important;overflow:visible!important;}
+ html.slc-hud-active #hintDock .guideCopy{min-width:0!important;overflow:visible!important;}
+ html.slc-hud-active #hintDock .guideCopy strong{
+  display:block!important;-webkit-line-clamp:unset!important;white-space:normal!important;
+  overflow:visible!important;max-height:none!important;overflow-wrap:normal!important;
+  word-break:normal!important;line-height:1.3!important;
+ }
+}
+/* 全機種：野菜点検 1/1 は改行禁止。内側からはみ出さずに数字を表示する */
+#overlay .washPanel .washBasin,#overlay .washPanel .miniPill{
+ white-space:nowrap!important;word-break:keep-all!important;overflow-wrap:normal!important;
+ font-variant-numeric:tabular-nums!important;
+}
+#overlay .washPanel .washBasin{font-size:clamp(16px,2.4vw,26px)!important;letter-spacing:-.04em!important;padding:0 3px!important;}
+/* ゲーム中の画像や操作文字を、本文より意図せず小さくしない */
+#overlay .actionMini .miniAnimCaption{white-space:normal!important;overflow-wrap:normal!important;word-break:normal!important;text-overflow:clip!important;text-align:center!important;}
+</style>
+
+<!-- SCHOOL LUNCH COOK: PC handwash native-aspect display correction 2026-10-27 -->
+<style id="slcPCHandwashNativeAspect20261027">
+/* PC with a mouse: keep official art and gameplay canvas in their original proportions.
+   Touch/mobile zoom defaults, kitchen camera and existing mini-game mechanics are untouched. */
+@media (min-width:900px) and (pointer:fine) {
+  #slcHandwashIntroOverlay .slcHandwashIntro {
+    box-sizing:border-box!important;
+    width:min(800px,calc(100vw - 36px))!important;
+    max-width:calc(100vw - 36px)!important;
+    height:min(655px,calc(100dvh - 30px))!important;
+    max-height:calc(100dvh - 30px)!important;
+    margin:auto!important;
+    gap:7px!important;
+  }
+  #slcHandwashIntroOverlay .slcHandIntroMain {
+    display:flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    flex:1 1 auto!important;
+    min-width:0!important;
+    min-height:0!important;
+    width:100%!important;
+    padding:5px!important;
+    overflow:hidden!important;
+  }
+  #slcHandwashIntroOverlay .slcHandIntroGuide {
+    display:block!important;
+    width:100%!important;
+    height:100%!important;
+    max-width:760px!important;
+    max-height:430px!important;
+    object-fit:contain!important;
+    object-position:center!important;
+    transform:none!important;
+  }
+  #slcHandwashIntroOverlay .slcHandIntroGrid{display:none!important;}
+  #overlay .handFoamPanel {
+    box-sizing:border-box!important;
+    width:min(1010px,calc(100vw - 36px))!important;
+    max-width:calc(100vw - 36px)!important;
+    height:min(595px,calc(100dvh - 30px))!important;
+    max-height:calc(100dvh - 30px)!important;
+    margin:auto!important;
+    gap:8px!important;
+  }
+  #overlay .handFoamContent {
+    display:grid!important;
+    grid-template-columns:minmax(0,1.14fr) minmax(270px,.86fr)!important;
+    align-items:center!important;
+    justify-items:stretch!important;
+    gap:12px!important;
+    min-height:0!important;
+    overflow:hidden!important;
+  }
+  #overlay .handFoamWindow {
+    display:flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    align-self:center!important;
+    width:100%!important;
+    height:auto!important;
+    min-height:0!important;
+    aspect-ratio:640/420!important;
+    max-height:calc(100dvh - 170px)!important;
+    overflow:hidden!important;
+    box-sizing:border-box!important;
+  }
+  #overlay #handFoamCanvas {
+    display:block!important;
+    width:100%!important;
+    height:auto!important;
+    aspect-ratio:640/420!important;
+    max-height:100%!important;
+    object-fit:contain!important;
+    object-position:center!important;
+    transform:none!important;
+    zoom:1!important;
+  }
+  #overlay .handFoamSide {
+    align-self:stretch!important;
+    min-height:0!important;
+    height:100%!important;
+    max-height:100%!important;
+    justify-content:center!important;
+    overflow-y:auto!important;
+  }
+}
+</style>
+
 </body></html>
